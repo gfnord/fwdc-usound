@@ -56,7 +56,7 @@ void setup()
   }
   USB.println();
   _setup_datafile();
-  USB.print(F("Getting GPS data... "));
+  USB.print(F("-- Getting GPS data... "));
   status = GPS.waitForSignal(TIMEOUT);
   if( status == true )
   {    
@@ -68,11 +68,11 @@ void setup()
   }
 
   // Call _lorasetup function
-  USB.print(F("Setting up Lorawan connection... "));
+  USB.print(F("-- Setting up Lorawan connection... "));
   _lorasetup();
   USB.println(F("done."));
   
-  USB.print(F("Current Time: "));
+  USB.print(F("-- Current Time: "));
   USB.println(RTC.getTime());  
   USB.OFF();
 }
@@ -85,9 +85,6 @@ void loop()
     USB.ON();
     USB.print(F("GPS Cycle: "));
     USB.println(gps_counter);
-    USB.print(F("Distance: "));
-    USB.print(dist);
-    USB.println(F(" cm"));    
     USB.OFF();    
   }
 
@@ -137,18 +134,21 @@ void measureSensors()
   if (strcmp(testing_dev, "YES") == 0)
   {
     USB.ON();
-    USB.print(F("Temperature: "));
+    USB.println();
+    USB.println(F("Sensor's data: "));
+    USB.print(F("  Temperature: "));
     USB.print(temp);
     USB.println(F(" Celsius"));
-    USB.print(F("Humidity: "));
+    USB.print(F("  Humidity: "));
     USB.print(humd);
     USB.println(F(" %"));  
-    USB.print(F("Pressure: "));
+    USB.print(F("  Pressure: "));
     USB.print(pres);
     USB.println(F(" Pa"));  
-    USB.print(F("Distance: "));
+    USB.print(F("  Distance: "));
     USB.print(dist);
-    USB.println(F(" cm"));    
+    USB.println(F(" cm"));  
+    USB.println();  
     USB.OFF();   
   }
   
@@ -180,42 +180,51 @@ void measureSensors()
   payload[14] = _battery_level;
 
   // Store the payload on SDCARD
-  USB.ON(); 
-  USB.println(F("Storing the data in the local SDCARD... "));
+  if (strcmp(testing_dev, "YES") == 0)
+  {
+    USB.ON(); 
+    USB.println(F("-- Storing the data in the local SDCARD... "));
+  }
   Utils.hex2str(payload, toWrite, sizeof(payload));
   SD.ON();
   sd_answer = SD.appendln(filename_data, toWrite);
-  if( sd_answer == 1 )
+  if (strcmp(testing_dev, "YES") == 0)
   {
-    USB.println(F("Data added to file"));
-  }
-  else 
-  {
-    USB.println(F("Data - append error"));
+    if( sd_answer == 1 )
+    {
+      USB.println(F("-- Data added to file"));
+    }
+    else 
+    {
+      USB.println(F("** Data append error!"));
+    }
   }
   SD.OFF();
-  USB.OFF();
-
+  if (strcmp(testing_dev, "YES") == 0)
+  {
+    USB.OFF();
+  }
+  
   // Send the Lorawan Frame
   LoRaWAN.ON(socket);
   error = LoRaWAN.joinABP();
   if( error == 0 )
   {
-    error = _send_message_confirmed(PORT, payload, sizeof(payload));
+    error = _send_message(PORT, payload, sizeof(payload));
     if( error != 0 )
     {
       // Try to send second time
       delay(20000);
-      error2 = _send_message_confirmed(PORT, payload, sizeof(payload));
+      error2 = _send_message(PORT, payload, sizeof(payload));
       if ( error2 != 0 )
       {
         // Try to send third time
         delay(20000);
-        error3 = _send_message_confirmed(PORT, payload, sizeof(payload));
+        error3 = _send_message(PORT, payload, sizeof(payload));
         if ( error3 != 0 )
         {
           USB.ON();
-          USB.print(F("--- Failed to send lora message, rebooting. "));
+          USB.print(F("** Failed to send lora message, rebooting. "));
           USB.OFF();
           PWR.reboot();
         }
@@ -272,7 +281,7 @@ char *_loadConfig_sleeptime()
       return(SD.buffer);
     } else {
       USB.ON();
-      USB.println(F("Failed to read sleeptime from sdcard. Assuming 00:01:00:00"));
+      USB.println(F("** Failed to read sleeptime from sdcard. Assuming 00:01:00:00"));
       USB.OFF();
       return("00:01:00:00"); 
     }
@@ -293,18 +302,18 @@ void _writeConfig_sleeptime(uint16_t deepsleeptime)
   sd_answer = SD.mkdir(path_conf);  
      if( sd_answer == 1 )
      { 
-       USB.println(F("SD CONF SLEEP: Path created"));
+       USB.println(F("-- SD CONF SLEEP: Path created"));
      }
      else
      {
-       USB.println(F("SD CONF SLEEP: Path already exists."));
+       USB.println(F("-- SD CONF SLEEP: Path already exists."));
      }  
   // Delete file to store config sleep time
   sd_answer = SD.del(filename_conf_sleep);
   if( sd_answer == 1 )
   { 
     // File deleted
-    USB.println(F("SD CONF SLEEP: Old file deleted. Creating a new one."));
+    USB.println(F("-- SD CONF SLEEP: Old file deleted. Creating a new one."));
     sd_answer = SD.create(filename_conf_sleep);
     if( sd_answer == 1 )
     {
@@ -319,13 +328,13 @@ void _writeConfig_sleeptime(uint16_t deepsleeptime)
     }
     else 
     {
-      USB.println(F("SD CONF SLEEP: file NOT created"));  
+      USB.println(F("** SD CONF SLEEP: file NOT created"));  
     }   
   }
   else
   {
     // File already exists, so read the value from it
-    USB.println(F("SD CONF SLEEP: Error deleting file."));
+    USB.println(F("** SD CONF SLEEP: Error deleting file."));
   }     
   // Set SD OFF
   SD.OFF();
@@ -335,7 +344,7 @@ void _writeConfig_sleeptime(uint16_t deepsleeptime)
 }
 
 // Function to send the lora message
-int _send_message_confirmed(int PORT, uint8_t PAYLOAD[], int SIZEPAYLOAD) 
+int _send_message(int PORT, uint8_t PAYLOAD[], int SIZEPAYLOAD) 
 {
   int response;
   LoRaWAN.setADR("off");
@@ -349,9 +358,12 @@ int _send_message_confirmed(int PORT, uint8_t PAYLOAD[], int SIZEPAYLOAD)
   }
   if( response == 0 )
   {
-    USB.ON();
-    USB.println(F("-- Sent confirmed lora message OK"));
-    USB.OFF();
+    if (strcmp(testing_dev, "YES") == 0)
+    {
+      USB.ON();
+      USB.println(F("-- Sent lorawan message OK"));
+      USB.OFF();
+    }
     if (LoRaWAN._dataReceived == true)
     {
       if (LoRaWAN._port == 5)
@@ -368,7 +380,7 @@ int _send_message_confirmed(int PORT, uint8_t PAYLOAD[], int SIZEPAYLOAD)
     }
   } else {
     USB.ON();
-    USB.print(F("-- Failed to send lora message, error: "));
+    USB.print(F("** Failed to send lora message, error: "));
     USB.println(response);
     USB.OFF();
     return response;
