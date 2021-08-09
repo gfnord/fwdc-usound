@@ -46,7 +46,7 @@ void setup()
   USB.ON();
   // switch on sensor board
   Agriculture.ON(); 
-  USB.println(F("Astra Smart Systems - Ultrasound Sensor - v1.0 - 2021/Aug/08"));
+  USB.println(F("Astra Smart Systems - Ultrasound Sensor - v1.1 - 2021/Aug/09"));
   USB.print(F("Deep Sleep time (dd:hh:mm:ss) loaded from config file: "));
   strcpy(deepsleeptime, _loadConfig_sleeptime());
   USB.println(deepsleeptime);
@@ -88,9 +88,9 @@ void loop()
     USB.OFF();    
   }
 
-  // GPS to update RTC clock every 14 days in case 15 minutes per cycle
+  // GPS to update RTC clock every 14 days in case 60 minutes per cycle
   gps_counter++;
-  if (gps_counter > 1343) { // Update RTC Clock
+  if (gps_counter > 336) { // Update RTC Clock
     GPS.ON();
     status = GPS.waitForSignal(TIMEOUT);
     if( status == true )
@@ -131,11 +131,23 @@ void measureSensors()
   // Read data from Ultrasound sensor 
   dist = Agriculture.getDistance();
 
+  // Prepare the lorawan payload
+  uint8_t _battery_level = PWR.getBatteryLevel(); //1 byte
+  uint16_t _temp = temp * 100; // 2 bytes
+  uint16_t _humd = humd * 100;
+  uint32_t _pres = pres * 100; // 4 bytes
+  // We don' need to convert epoch (4 bytes) and dist (2 bytes)
+  uint8_t PORT = 3;
+  uint8_t payload[15];
+  
   if (strcmp(testing_dev, "YES") == 0)
   {
     USB.ON();
     USB.println();
     USB.println(F("Sensor's data: "));
+    USB.print(F("  Battery: "));
+    USB.print(_battery_level);
+    USB.println(F(" %"));
     USB.print(F("  Temperature: "));
     USB.print(temp);
     USB.println(F(" Celsius"));
@@ -152,15 +164,6 @@ void measureSensors()
     USB.OFF();   
   }
   
-  // Prepare the lorawan payload
-  uint8_t _battery_level = PWR.getBatteryLevel(); //1 byte
-  uint16_t _temp = temp * 100; // 2 bytes
-  uint16_t _humd = humd * 100;
-  uint32_t _pres = pres * 100; // 4 bytes
-  // We don' need to convert epoch (4 bytes) and dist (2 bytes)
-  uint8_t PORT = 3;
-  uint8_t payload[15];
-
   // THE payload
   memset(payload,0x00, sizeof(payload));
   payload[0]  = _temp >> 8;
