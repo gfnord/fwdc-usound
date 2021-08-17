@@ -47,6 +47,7 @@ bool status;
 uint32_t epoch;
 //Lora socket
 uint8_t socket = SOCKET0; 
+int Battery_Level = 0;
 
 
 void setup()
@@ -164,11 +165,12 @@ void measureSensors()
  
   if (strcmp(testing_dev, "YES") == 0)
   {
+    Battery_Level = PWR.getBatteryLevel();
     USB.ON();
     USB.println();
     USB.println(F("Sensor's data: "));
     USB.print(F("  Battery: "));
-    USB.print(_battery_level);
+    USB.print(Battery_Level);
     USB.println(F(" %"));
     USB.print(F("  Temperature: "));
     USB.print(temp);
