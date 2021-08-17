@@ -4,12 +4,22 @@
 
 // Lorawan Keys
 // ultrasound01
-char DEVICE_EUI[]  = "6b5c3b1e0f055a15";
-char DEVICE_ADDR[] = "036d26da";
-char NWK_SESSION_KEY[] = "22eb465f3becbfea9f1a7e4ac9b2b562";
-char APP_SESSION_KEY[] = "c0777299d72c605e83bcdeda8452f9ff";
-char moteID[] = "usound01-test";
+//char DEVICE_EUI[]  = "6b5c3b1e0f055a15";
+//char DEVICE_ADDR[] = "036d26da";
+//char NWK_SESSION_KEY[] = "22eb465f3becbfea9f1a7e4ac9b2b562";
+//char APP_SESSION_KEY[] = "c0777299d72c605e83bcdeda8452f9ff";
+//char moteID[] = "usound01-test";
+//char testing_dev[] = "YES";
+//char unit_with_gps[] = "YES";
+
+// ultrasound02
+char DEVICE_EUI[]  = "b8ad19b6854abcc2";
+char DEVICE_ADDR[] = "023a53d8";
+char NWK_SESSION_KEY[] = "a65381ad6dcd11d55c209e2c5e06f2de";
+char APP_SESSION_KEY[] = "da1129fb92f30478b1d725ce86dff8db";
+char moteID[] = "usound02";
 char testing_dev[] = "YES";
+char unit_with_gps[] = "NO";
 
 // Variable to store the distance value
 uint16_t dist = 0;
@@ -46,7 +56,7 @@ void setup()
   USB.ON();
   // switch on sensor board
   Agriculture.ON(); 
-  USB.println(F("Astra Smart Systems - Ultrasound Sensor - v1.1 - 2021/Aug/09"));
+  USB.println(F("Astra Smart Systems - Ultrasound Sensor - v1.2 - 2021/Aug/17"));
   USB.print(F("Deep Sleep time (dd:hh:mm:ss) loaded from config file: "));
   strcpy(deepsleeptime, _loadConfig_sleeptime());
   USB.println(deepsleeptime);
@@ -56,15 +66,19 @@ void setup()
   }
   USB.println();
   _setup_datafile();
-  USB.print(F("-- Getting GPS data... "));
-  status = GPS.waitForSignal(TIMEOUT);
-  if( status == true )
-  {    
-    // set time in RTC from GPS time (GMT time)
-    GPS.setTimeFromGPS();
-    Utils.blinkLEDs(1000);
-    USB.println(F("done."));
-    GPS.OFF();
+
+  if (strcmp(unit_with_gps, "YES") == 0)
+  {
+    USB.print(F("-- Getting GPS data... "));
+    status = GPS.waitForSignal(TIMEOUT);
+    if( status == true )
+    {    
+      // set time in RTC from GPS time (GMT time)
+      GPS.setTimeFromGPS();
+      Utils.blinkLEDs(1000);
+      USB.println(F("done."));
+      GPS.OFF();
+    }
   }
 
   // Call _lorasetup function
@@ -80,7 +94,7 @@ void setup()
 void loop()
 {
   // If testing mode, print the data
-  if (strcmp(testing_dev, "YES") == 0)
+  if (strcmp(testing_dev, "YES") == 0 && strcmp(unit_with_gps, "YES") == 0)
   {
     USB.ON();
     USB.print(F("GPS Cycle: "));
@@ -88,20 +102,22 @@ void loop()
     USB.OFF();    
   }
 
-  // GPS to update RTC clock every 14 days in case 60 minutes per cycle
-  gps_counter++;
-  if (gps_counter > 336) { // Update RTC Clock
-    GPS.ON();
-    status = GPS.waitForSignal(TIMEOUT);
-    if( status == true )
-    {    
-      // set time in RTC from GPS time (GMT time)
-      GPS.setTimeFromGPS();
-      GPS.OFF();
-      gps_counter = 0;
+  if (strcmp(unit_with_gps, "YES") == 0)
+  {
+    // GPS to update RTC clock every 14 days in case 60 minutes per cycle
+    gps_counter++;
+    if (gps_counter > 1344) { // Update RTC Clock
+      GPS.ON();
+      status = GPS.waitForSignal(TIMEOUT);
+      if( status == true )
+      {    
+        // set time in RTC from GPS time (GMT time)
+        GPS.setTimeFromGPS();
+        GPS.OFF();
+        gps_counter = 0;
+      }
     }
   }
-
   // Take the readings and send the lora payload
   measureSensors();
     
@@ -122,7 +138,10 @@ void loop()
 
 void measureSensors()
 {
-  epoch = RTC.getEpochTime();
+  if (strcmp(unit_with_gps, "YES") == 0)
+  {
+    epoch = RTC.getEpochTime();
+  }
   
   // Read data from sensor BME280
   temp = Agriculture.getTemperature();
@@ -137,9 +156,12 @@ void measureSensors()
   uint16_t _humd = humd * 100;
   uint32_t _pres = pres * 100; // 4 bytes
   // We don' need to convert epoch (4 bytes) and dist (2 bytes)
-  uint8_t PORT = 3;
-  uint8_t payload[15];
-  
+
+    uint8_t PORT = 3; // for units with GPS
+    uint8_t payload[15];
+    uint8_t PORT_NO_GPS = 4; // for units without GPS
+    uint8_t payload_no_gps[11];
+ 
   if (strcmp(testing_dev, "YES") == 0)
   {
     USB.ON();
@@ -165,32 +187,55 @@ void measureSensors()
   }
   
   // THE payload
-  memset(payload,0x00, sizeof(payload));
-  payload[0]  = _temp >> 8;
-  payload[1]  = _temp;
-  payload[2]  = _humd >> 8;
-  payload[3]  = _humd;
-  payload[4]  = _pres >> 24;
-  payload[5]  = _pres >> 16;
-  payload[6]  = _pres >> 8;
-  payload[7]  = _pres;
-  payload[8]  = epoch >> 24;
-  payload[9]  = epoch >> 16;
-  payload[10] = epoch >> 8;
-  payload[11] = epoch;
-  payload[12] = dist >> 8;
-  payload[13] = dist;
-  payload[14] = _battery_level;
-
+  if (strcmp(unit_with_gps, "YES") == 0)
+  {
+    memset(payload,0x00, sizeof(payload));
+    payload[0]  = _temp >> 8;
+    payload[1]  = _temp;
+    payload[2]  = _humd >> 8;
+    payload[3]  = _humd;
+    payload[4]  = _pres >> 24;
+    payload[5]  = _pres >> 16;
+    payload[6]  = _pres >> 8;
+    payload[7]  = _pres;
+    payload[8]  = epoch >> 24;
+    payload[9]  = epoch >> 16;
+    payload[10] = epoch >> 8;
+    payload[11] = epoch;
+    payload[12] = dist >> 8;
+    payload[13] = dist;
+    payload[14] = _battery_level;
+  } else {
+    memset(payload_no_gps,0x00, sizeof(payload_no_gps));
+    payload_no_gps[0]  = _temp >> 8;
+    payload_no_gps[1]  = _temp;
+    payload_no_gps[2]  = _humd >> 8;
+    payload_no_gps[3]  = _humd;
+    payload_no_gps[4]  = _pres >> 24;
+    payload_no_gps[5]  = _pres >> 16;
+    payload_no_gps[6]  = _pres >> 8;
+    payload_no_gps[7]  = _pres;
+    payload_no_gps[8] = dist >> 8;
+    payload_no_gps[9] = dist;
+    payload_no_gps[10] = _battery_level;
+  }
+  
   // Store the payload on SDCARD
   if (strcmp(testing_dev, "YES") == 0)
   {
     USB.ON(); 
     USB.println(F("-- Storing the data in the local SDCARD... "));
   }
-  Utils.hex2str(payload, toWrite, sizeof(payload));
+  if (strcmp(unit_with_gps, "YES") == 0)
+  {
+    Utils.hex2str(payload, toWrite, sizeof(payload));
+  } else
+  {
+    Utils.hex2str(payload_no_gps, toWrite, sizeof(payload_no_gps));
+  }
   SD.ON();
   sd_answer = SD.appendln(filename_data, toWrite);
+  
   if (strcmp(testing_dev, "YES") == 0)
   {
     if( sd_answer == 1 )
@@ -213,25 +258,49 @@ void measureSensors()
   error = LoRaWAN.joinABP();
   if( error == 0 )
   {
-    error = _send_message(PORT, payload, sizeof(payload));
-    if( error != 0 )
+    if (strcmp(unit_with_gps, "YES") == 0)
     {
-      // Try to send second time
-      delay(20000);
-      error2 = _send_message(PORT, payload, sizeof(payload));
-      if ( error2 != 0 )
+      error = _send_message(PORT, payload, sizeof(payload));
+      if( error != 0 )
       {
-        // Try to send third time
+        // Try to send second time
         delay(20000);
-        error3 = _send_message(PORT, payload, sizeof(payload));
-        if ( error3 != 0 )
+        error2 = _send_message(PORT, payload, sizeof(payload));
+        if ( error2 != 0 )
         {
-          USB.ON();
-          USB.print(F("** Failed to send lora message, rebooting. "));
-          USB.OFF();
-          PWR.reboot();
+          // Try to send third time
+          delay(20000);
+          error3 = _send_message(PORT, payload, sizeof(payload));
+          if ( error3 != 0 )
+          {
+            USB.ON();
+            USB.print(F("** Failed to send lora message, rebooting. "));
+            USB.OFF();
+            PWR.reboot();
+          }
         }
       }
+    } else {
+      error = _send_message(PORT_NO_GPS, payload_no_gps, sizeof(payload_no_gps));
+      if( error != 0 )
+      {
+        // Try to send second time
+        delay(20000);
+        error2 = _send_message(PORT_NO_GPS, payload_no_gps, sizeof(payload_no_gps));
+        if ( error2 != 0 )
+        {
+          // Try to send third time
+          delay(20000);
+          error3 = _send_message(PORT_NO_GPS, payload_no_gps, sizeof(payload_no_gps));
+          if ( error3 != 0 )
+          {
+            USB.ON();
+            USB.print(F("** Failed to send lora message, rebooting. "));
+            USB.OFF();
+            PWR.reboot();
+          }
+        }
+      }      
     }
   }
   LoRaWAN.OFF(socket);    
@@ -271,22 +340,22 @@ char *_loadConfig_sleeptime()
   delay(1000);
   SD.mkdir(path_conf);  
   sd_answer = SD.create(filename_conf_sleep);
-  if( sd_answer == 1 )
+  if( sd_answer == 1 ) // If new file, create with the normal sleeping time
   {    
-    sd_answer = SD.writeSD(filename_conf_sleep,"00:01:00:00", 0);
-    return("00:01:00:00");
+    sd_answer = SD.writeSD(filename_conf_sleep,"00:00:15:00", 0);
+    return("00:00:15:00");
   }
-  else
+  else // if not, read the content
   {
     SD.catln(filename_conf_sleep,0,1);
-    if (strcmp(SD.buffer, "00:01:00:00") == 0 || strcmp(SD.buffer, "00:12:00:00") == 0)
+    if (strcmp(SD.buffer, "00:00:15:00") == 0 || strcmp(SD.buffer, "00:01:00:00") == 0)
     {
       return(SD.buffer);
     } else {
       USB.ON();
-      USB.println(F("** Failed to read sleeptime from sdcard. Assuming 00:01:00:00"));
+      USB.println(F("** Failed to read sleeptime from sdcard. Assuming 00:00:15:00"));
       USB.OFF();
-      return("00:01:00:00"); 
+      return("00:00:15:00"); 
     }
   }     
   // Set SD OFF
@@ -322,11 +391,11 @@ void _writeConfig_sleeptime(uint16_t deepsleeptime)
     {
       if (deepsleeptime == 5)
       {
-        sd_answer = SD.writeSD(filename_conf_sleep,"00:01:00:00", 0);
+        sd_answer = SD.writeSD(filename_conf_sleep,"00:00:15:00", 0); // Normal Mode
       }
       if (deepsleeptime == 15)
       {
-        sd_answer = SD.writeSD(filename_conf_sleep,"00:12:00:00", 0);
+        sd_answer = SD.writeSD(filename_conf_sleep,"00:01:00:00", 0); // Winter Mode
       }
     }
     else 
