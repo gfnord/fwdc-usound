@@ -18,7 +18,7 @@ char DEVICE_ADDR[] = "023a53d8";
 char NWK_SESSION_KEY[] = "a65381ad6dcd11d55c209e2c5e06f2de";
 char APP_SESSION_KEY[] = "da1129fb92f30478b1d725ce86dff8db";
 char moteID[] = "usound02";
-char testing_dev[] = "YES";
+char testing_dev[] = "NO";
 char unit_with_gps[] = "NO";
 
 // Variable to store the distance value
@@ -37,7 +37,8 @@ float temp, humd, pres;
 // define variable to check sdcard commands
 uint8_t sd_answer;
 char toWrite[64];
-char deepsleeptime[11]; //loaded from config
+char _deepsleeptime[11]; // loaded from config file
+char __deepsleeptime[11];
 // define GPS timeout when connecting to satellites
 // this time is defined in seconds (240sec = 4minutes)
 #define TIMEOUT 240
@@ -55,12 +56,12 @@ void setup()
   GPS.ON();
   RTC.ON();
   USB.ON();
-  // switch on sensor board
-  Agriculture.ON(); 
+
   USB.println(F("Astra Smart Systems - Ultrasound Sensor - v1.2 - 2021/Aug/17"));
   USB.print(F("Deep Sleep time (dd:hh:mm:ss) loaded from config file: "));
-  strcpy(deepsleeptime, _loadConfig_sleeptime());
-  USB.println(deepsleeptime);
+  strncpy(_deepsleeptime, _loadConfig_sleeptime(), 11);
+  _deepsleeptime[11] = 0;
+  USB.println(_deepsleeptime);
   if (strcmp(testing_dev, "YES") == 0) 
   {
     USB.println(F("Testing device mode. Sleep time will be 1 minute."));
@@ -94,12 +95,15 @@ void setup()
  
 void loop()
 {
+  // Turn on the sensor board
+  Agriculture.ON(); 
+  
   // If testing mode, print the data
   if (strcmp(testing_dev, "YES") == 0 && strcmp(unit_with_gps, "YES") == 0)
   {
     USB.ON();
     USB.print(F("GPS Cycle: "));
-    USB.println(gps_counter);
+    USB.println(gps_counter);  
     USB.OFF();    
   }
 
@@ -121,16 +125,19 @@ void loop()
   }
   // Take the readings and send the lora payload
   measureSensors();
+
+  // Turn off the sensor board
+  Agriculture.OFF(); 
     
   // Goign to sleep with sensors on
   USB.ON();
-  USB.print(F("-- Going Deep Sleep... "));
+  USB.print(F("-- Going in Deep Sleep... "));
   USB.OFF();
   if (strcmp(testing_dev, "YES") == 0) 
   {
-    Agriculture.sleepAgr("00:00:01:00", RTC_OFFSET, RTC_ALM1_MODE4, SENSOR_ON, SENS_AGR_PLUVIOMETER);
+    Agriculture.sleepAgr("00:00:01:00", RTC_OFFSET, RTC_ALM1_MODE4, ALL_OFF);
   } else {
-    Agriculture.sleepAgr(deepsleeptime, RTC_OFFSET, RTC_ALM1_MODE4, SENSOR_ON, SENS_AGR_PLUVIOMETER);
+    Agriculture.sleepAgr("00:00:15:00", RTC_OFFSET, RTC_ALM1_MODE4, ALL_OFF); // deep sleep time fixed
   } 
   USB.ON();
   USB.println(F("Done, woke up."));
@@ -350,10 +357,14 @@ char *_loadConfig_sleeptime()
   else // if not, read the content
   {
     SD.catln(filename_conf_sleep,0,1);
-    if (strcmp(SD.buffer, "00:00:15:00") == 0 || strcmp(SD.buffer, "00:01:00:00") == 0)
+    if (strcmp(SD.buffer, "00:00:15:00") == 0)
     {
-      return(SD.buffer);
-    } else {
+      return("00:00:15:00");
+    } else if (strcmp(SD.buffer, "00:01:00:00") == 0)
+    {
+      return("00:01:00:00");
+    } else 
+    {
       USB.ON();
       USB.println(F("** Failed to read sleeptime from sdcard. Assuming 00:00:15:00"));
       USB.OFF();
