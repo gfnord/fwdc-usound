@@ -4,22 +4,22 @@
 
 // Lorawan Keys
 // ultrasound01
-//char DEVICE_EUI[]  = "6b5c3b1e0f055a15";
-//char DEVICE_ADDR[] = "036d26da";
-//char NWK_SESSION_KEY[] = "22eb465f3becbfea9f1a7e4ac9b2b562";
-//char APP_SESSION_KEY[] = "c0777299d72c605e83bcdeda8452f9ff";
-//char moteID[] = "usound01-test";
-//char testing_dev[] = "YES";
-//char unit_with_gps[] = "YES";
+char DEVICE_EUI[]  = "6b5c3b1e0f055a15";
+char DEVICE_ADDR[] = "036d26da";
+char NWK_SESSION_KEY[] = "22eb465f3becbfea9f1a7e4ac9b2b562";
+char APP_SESSION_KEY[] = "c0777299d72c605e83bcdeda8452f9ff";
+char moteID[] = "usound01";
+char testing_dev[] = "NO";
+char unit_with_gps[] = "YES";
 
 // ultrasound02
-char DEVICE_EUI[]  = "b8ad19b6854abcc2";
-char DEVICE_ADDR[] = "023a53d8";
-char NWK_SESSION_KEY[] = "a65381ad6dcd11d55c209e2c5e06f2de";
-char APP_SESSION_KEY[] = "da1129fb92f30478b1d725ce86dff8db";
-char moteID[] = "usound02";
-char testing_dev[] = "NO";
-char unit_with_gps[] = "NO";
+//char DEVICE_EUI[]  = "b8ad19b6854abcc2";
+//char DEVICE_ADDR[] = "023a53d8";
+//char NWK_SESSION_KEY[] = "a65381ad6dcd11d55c209e2c5e06f2de";
+//char APP_SESSION_KEY[] = "da1129fb92f30478b1d725ce86dff8db";
+//char moteID[] = "usound02";
+//char testing_dev[] = "NO";
+//char unit_with_gps[] = "NO";
 
 // Variable to store the distance value
 uint16_t dist = 0;
@@ -57,7 +57,7 @@ void setup()
   RTC.ON();
   USB.ON();
 
-  USB.println(F("Astra Smart Systems - Ultrasound Sensor - v1.2 - 2021/Aug/17"));
+  USB.println(F("Astra Smart Systems - Ultrasound Sensor - v1.3 - 2021/Sep/24"));
   USB.print(F("Deep Sleep time (dd:hh:mm:ss) loaded from config file: "));
   strncpy(_deepsleeptime, _loadConfig_sleeptime(), 11);
   _deepsleeptime[11] = 0;
@@ -94,10 +94,7 @@ void setup()
 }
  
 void loop()
-{
-  // Turn on the sensor board
-  Agriculture.ON(); 
-  
+{  
   // If testing mode, print the data
   if (strcmp(testing_dev, "YES") == 0 && strcmp(unit_with_gps, "YES") == 0)
   {
@@ -123,13 +120,8 @@ void loop()
       }
     }
   }
-  // Take the readings and send the lora payload
-  measureSensors();
 
-  // Turn off the sensor board
-  Agriculture.OFF(); 
-    
-  // Goign to sleep with sensors on
+  // Goign to sleep with sensors off
   USB.ON();
   USB.print(F("-- Going in Deep Sleep... "));
   USB.OFF();
@@ -142,6 +134,15 @@ void loop()
   USB.ON();
   USB.println(F("Done, woke up."));
   USB.OFF();
+
+  // Turn on the sensor board
+  Agriculture.ON(); 
+  
+  // Take the readings and send the lora payload
+  measureSensors();
+
+  // Turn off the sensor board
+  Agriculture.OFF(); 
 }
 
 void measureSensors()
@@ -306,6 +307,8 @@ void measureSensors()
             USB.ON();
             USB.print(F("** Failed to send lora message, rebooting. "));
             USB.OFF();
+            // Sleep for 30 minutes then reboot.
+            Agriculture.sleepAgr("00:00:30:00", RTC_OFFSET, RTC_ALM1_MODE4, ALL_OFF);
             PWR.reboot();
           }
         }
